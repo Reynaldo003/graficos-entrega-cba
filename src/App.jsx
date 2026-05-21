@@ -1,4 +1,4 @@
-// src/pages/Entregas/RegistroEntregas.jsx
+// src/App.jsx
 import { useEffect, useMemo, useState } from "react";
 import {
   Search,
@@ -10,7 +10,6 @@ import {
   ChevronUp,
   Loader2,
   Phone,
-  Building2,
   UserStar,
   Hash,
   ChevronLeft,
@@ -22,6 +21,12 @@ import {
   RefreshCcw,
   Palette,
   Layers3,
+  TrendingUp,
+  Activity,
+  CalendarCheck2,
+  Timer,
+  Trophy,
+  Gauge,
 } from "lucide-react";
 
 import {
@@ -36,20 +41,32 @@ import {
   Pie,
   Cell,
   Legend,
+  LineChart,
+  Line,
 } from "recharts";
 
 import { apiEntregas } from "./lib/apiEntregas";
 
+const DEFAULT_DEALER = "VW Cordoba";
 const BRAND_BLUE = "#131E5C";
+const SKY = "#0EA5E9";
+const EMERALD = "#059669";
+const AMBER = "#D97706";
+const SLATE = "#64748B";
+
 const HOURS = Array.from(
-  { length: 13 },
-  (_, index) => `${String(index + 8).padStart(2, "0")}:00`
+  { length: 9 },
+  (_, index) => `${String(index + 10).padStart(2, "0")}:00`
 );
 
-const CHART_COLORS = ["#131E5C", "#0EA5E9"];
+const PIE_COLORS = [EMERALD, AMBER];
 
 function normalizeStr(value) {
   return String(value ?? "").trim();
+}
+
+function sameDealer(value) {
+  return normalizeStr(value).toLowerCase() === DEFAULT_DEALER.toLowerCase();
 }
 
 function entregaFisicaActiva(value) {
@@ -71,9 +88,9 @@ function Skeleton({ className = "" }) {
 function SkeletonRow() {
   return (
     <tr className="animate-pulse">
-      {Array.from({ length: 14 }).map((_, index) => (
+      {Array.from({ length: 11 }).map((_, index) => (
         <td key={index} className="px-4 py-3">
-          <div className="h-4 w-28 rounded bg-slate-200/60" />
+          <div className="h-4 w-28 rounded bg-slate-200/70" />
         </td>
       ))}
     </tr>
@@ -184,10 +201,64 @@ function getHourKey(dateLike) {
   return `${String(date.getHours()).padStart(2, "0")}:00`;
 }
 
+function getMonthKey(dateLike) {
+  if (!dateLike) return "";
+
+  const date = new Date(dateLike);
+
+  if (Number.isNaN(date.getTime())) return "";
+
+  const pad = (n) => String(n).padStart(2, "0");
+
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
+}
+
+function formatShortDate(ymd) {
+  if (!ymd) return "Sin fecha";
+
+  const date = parseYMDLocal(ymd);
+
+  return date.toLocaleDateString("es-MX", {
+    day: "2-digit",
+    month: "2-digit",
+  });
+}
+
+function getWeekdayName(dateLike) {
+  if (!dateLike) return "Sin fecha";
+
+  const date = new Date(dateLike);
+
+  if (Number.isNaN(date.getTime())) return "Sin fecha";
+
+  return date.toLocaleDateString("es-MX", {
+    weekday: "long",
+  });
+}
+
+function countBy(rows, getKey, labelKey = "name") {
+  const map = {};
+
+  for (const row of rows) {
+    const key = normalizeStr(getKey(row)) || "Sin capturar";
+
+    if (!map[key]) {
+      map[key] = {
+        [labelKey]: key,
+        total: 0,
+      };
+    }
+
+    map[key].total += 1;
+  }
+
+  return Object.values(map).sort((a, b) => b.total - a.total);
+}
+
 function FilterBlock({ label, children }) {
   return (
-    <div className="rounded-lg">
-      <div className="mb-2 text-xs font-extrabold tracking-wide text-[#131E5C]">
+    <div>
+      <div className="mb-2 text-xs font-black uppercase tracking-wide text-[#131E5C]/75">
         {label}
       </div>
 
@@ -196,18 +267,19 @@ function FilterBlock({ label, children }) {
   );
 }
 
-function StatusBadge({ row, compact = false }) {
+function StatusButton({ row, compact = false }) {
   const entregada = entregaFisicaActiva(row?.entrega_reportada);
 
   return (
     <span
       className={[
-        "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full border font-extrabold",
+        "inline-flex shrink-0 items-center justify-center gap-1.5 rounded-full border font-extrabold transition",
         compact ? "px-2 py-1 text-[10px]" : "px-3 py-1.5 text-xs",
         entregada
           ? "border-emerald-300 bg-emerald-100 text-emerald-800"
           : "border-amber-300 bg-amber-100 text-amber-800",
       ].join(" ")}
+      title={entregada ? "Entrega física realizada" : "Entrega física pendiente"}
     >
       {entregada ? (
         <CheckCircle2 className="h-3.5 w-3.5" />
@@ -220,6 +292,24 @@ function StatusBadge({ row, compact = false }) {
   );
 }
 
+function ViewButton({ active, onClick, icon: Icon, label }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-black transition",
+        active
+          ? "bg-[#131E5C] text-white shadow-sm"
+          : "text-[#131E5C] hover:bg-[#131E5C]/5",
+      ].join(" ")}
+    >
+      <Icon className="h-4 w-4" />
+      {label}
+    </button>
+  );
+}
+
 function EntregaAgendaCard({ row, compact = false }) {
   const entregada = entregaFisicaActiva(row?.entrega_reportada);
   const nombreCliente = row?.cliente?.nombre || "Sin nombre";
@@ -228,10 +318,13 @@ function EntregaAgendaCard({ row, compact = false }) {
   return (
     <div
       className={[
-        "relative w-full overflow-hidden rounded-md border text-left shadow-sm",
+        "relative w-full overflow-hidden rounded-md border text-left shadow-sm transition hover:-translate-y-[1px] hover:shadow-md",
         compact ? "p-3" : "p-2.5",
-        entregada ? "border-emerald-300 bg-emerald-50/95" : "border-sky-200 bg-sky-50/95",
+        entregada
+          ? "border-emerald-300 bg-emerald-50/95"
+          : "border-sky-200 bg-sky-50/95",
       ].join(" ")}
+      title="Entrega"
     >
       {entregada ? (
         <span className="absolute bottom-0 left-0 top-0 flex w-3 items-center justify-center rounded-l-md bg-emerald-500">
@@ -246,7 +339,7 @@ function EntregaAgendaCard({ row, compact = false }) {
               <CalendarDays className="h-3.5 w-3.5" />
               <span>{formatCardTime(row.fecha_hora_entrega)}</span>
               <span className="text-slate-400">•</span>
-              <span className="truncate">{row.agencia || "Sin dealer"}</span>
+              <span className="truncate">{row.agencia || DEFAULT_DEALER || "Sin dealer"}</span>
             </div>
 
             <div className="mt-1 truncate text-xs font-black uppercase tracking-wide text-[#131E5C]">
@@ -254,7 +347,7 @@ function EntregaAgendaCard({ row, compact = false }) {
             </div>
           </div>
 
-          <StatusBadge row={row} compact />
+          <StatusButton row={row} compact />
         </div>
 
         <div className="mt-2 grid gap-1 text-[10px] font-semibold text-slate-600">
@@ -309,7 +402,6 @@ function AgendaMobileList({ rows, loading }) {
         : "sin-fecha";
 
       if (!map.has(key)) map.set(key, []);
-
       map.get(key).push(row);
     }
 
@@ -400,7 +492,9 @@ function AgendaWeekView({ rows, loading, currentWeekDate, setCurrentWeekDate }) 
       const hourKey = getHourKey(row.fecha_hora_entrega);
       const key = `${dayKey}|${hourKey}`;
 
-      if (!map.has(key)) map.set(key, []);
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
 
       map.get(key).push(row);
     }
@@ -427,7 +521,9 @@ function AgendaWeekView({ rows, loading, currentWeekDate, setCurrentWeekDate }) 
   }, [rows]);
 
   const gridStyle = useMemo(
-    () => ({ gridTemplateColumns: "58px repeat(6, minmax(210px, 1fr))" }),
+    () => ({
+      gridTemplateColumns: `150px repeat(${HOURS.length}, minmax(170px, 1fr))`
+    }),
     []
   );
 
@@ -437,7 +533,7 @@ function AgendaWeekView({ rows, loading, currentWeekDate, setCurrentWeekDate }) 
 
   return (
     <div className="hidden lg:block">
-      <div className="mb-3 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm xl:flex-row xl:items-center xl:justify-between">
+      <div className="mb-3 flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-4 shadow-sm xl:flex-row xl:items-center xl:justify-between">
         <div className="min-w-0">
           <div className="text-xs font-semibold text-slate-500">Semana</div>
 
@@ -475,97 +571,136 @@ function AgendaWeekView({ rows, loading, currentWeekDate, setCurrentWeekDate }) 
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
         <div className="overflow-auto">
-          <div className="min-w-[1320px]">
+          <div className="min-w-[2350px]">
             <div
-              className="sticky top-0 z-20 grid border-b border-slate-200 bg-slate-50"
+              className="sticky top-0 z-30 grid border-b border-slate-200 bg-slate-50"
               style={gridStyle}
             >
-              <div className="px-3 py-3 text-xs font-bold text-slate-500">
-                Hora
+              <div className="sticky left-0 z-40 border-r border-slate-200 bg-slate-50 px-3 py-3 text-xs font-black uppercase tracking-wide text-slate-500">
+                Día / Hora
               </div>
 
-              {weekDays.map((day) => {
-                const iso = toYMDLocal(day);
-                const isToday = iso === todayIso;
+              {HOURS.map((hour) => (
+                <div
+                  key={hour}
+                  className="border-l border-slate-200 px-3 py-3 text-center"
+                >
+                  <span className="inline-flex rounded-lg bg-[#131E5C]/10 px-3 py-1 text-xs font-black text-[#131E5C]">
+                    {hour}
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            {loading ? (
+              <>
+                {weekDays.map((day) => {
+                  const dayKey = toYMDLocal(day);
+
+                  return (
+                    <div
+                      key={dayKey}
+                      className="grid border-b border-dashed border-slate-300"
+                      style={gridStyle}
+                    >
+                      <div className="sticky left-0 z-20 border-r border-slate-200 bg-white px-3 py-4">
+                        <Skeleton className="h-4 w-24" />
+                        <Skeleton className="mt-2 h-3 w-16" />
+                      </div>
+
+                      {HOURS.map((hour) => (
+                        <div
+                          key={`${dayKey}-${hour}`}
+                          className="min-h-[132px] border-l border-slate-100 p-2"
+                        >
+                          <Skeleton className="h-20 w-full rounded-lg" />
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })}
+              </>
+            ) : (
+              weekDays.map((day) => {
+                const dayKey = toYMDLocal(day);
+                const isToday = dayKey === todayIso;
 
                 return (
                   <div
-                    key={iso}
-                    className="border-l border-slate-200 px-3 py-3 text-center"
+                    key={dayKey}
+                    className="grid border-b border-dashed border-slate-300"
+                    style={gridStyle}
                   >
                     <div
                       className={[
-                        "mx-auto inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-black",
-                        isToday ? "bg-[#131E5C] text-white" : "text-[#131E5C]",
+                        "sticky left-0 z-20 border-r border-slate-200 px-3 py-4",
+                        isToday ? "bg-[#131E5C] text-white" : "bg-white text-[#131E5C]",
                       ].join(" ")}
                     >
-                      <span>{weekdayShortEs(day)}</span>
+                      <div className="text-xs font-black uppercase tracking-wide">
+                        {weekdayShortEs(day)}
+                      </div>
 
-                      <span>
+                      <div className="mt-1 text-lg font-black">
                         {day.toLocaleDateString("es-MX", {
                           day: "2-digit",
                           month: "2-digit",
                         })}
-                      </span>
+                      </div>
+
+                      <div
+                        className={[
+                          "mt-1 text-[10px] font-semibold",
+                          isToday ? "text-white/75" : "text-slate-500",
+                        ].join(" ")}
+                      >
+                        {day.toLocaleDateString("es-MX", {
+                          weekday: "long",
+                        })}
+                      </div>
                     </div>
+
+                    {HOURS.map((hour) => {
+                      const slotKey = `${dayKey}|${hour}`;
+                      const items = rowsBySlot.get(slotKey) || [];
+
+                      return (
+                        <div
+                          key={slotKey}
+                          className="relative min-h-[132px] border-l border-slate-200 bg-white/80 p-1.5 transition hover:bg-slate-50"
+                        >
+                          {items.length ? (
+                            <div className="grid gap-1.5">
+                              {items.map((row) => (
+                                <EntregaAgendaCard
+                                  key={row.id}
+                                  row={row}
+                                  compact
+                                />
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="flex h-full min-h-[118px] items-center justify-center rounded-lg border border-dashed border-slate-200 text-[10px] font-bold text-slate-300">
+                              Sin entrega
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 );
-              })}
-            </div>
-
-            {loading ? (
-              <div className="grid" style={gridStyle}>
-                {Array.from({ length: 42 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="min-h-[116px] border-b border-l border-slate-100 p-2"
-                  >
-                    <Skeleton className="h-16 w-full rounded-lg" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              HOURS.map((hour) => (
-                <div
-                  key={hour}
-                  className="grid border-b border-dashed border-slate-300"
-                  style={gridStyle}
-                >
-                  <div className="bg-slate-50 px-3 py-3 text-xs font-bold text-slate-500">
-                    {hour}
-                  </div>
-
-                  {weekDays.map((day) => {
-                    const dayKey = toYMDLocal(day);
-                    const slotKey = `${dayKey}|${hour}`;
-                    const items = rowsBySlot.get(slotKey) || [];
-
-                    return (
-                      <div
-                        key={slotKey}
-                        className="relative min-h-[116px] border-l border-slate-200 bg-white/80 p-1.5"
-                      >
-                        <div className="grid gap-1.5 pr-1">
-                          {items.map((row) => (
-                            <EntregaAgendaCard key={row.id} row={row} />
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ))
+              })
             )}
           </div>
         </div>
       </div>
 
       {!loading && outOfScheduleRows.length ? (
-        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+        <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
           <div className="mb-2 text-xs font-black uppercase tracking-wide text-amber-800">
-            Entregas sin hora o fuera del rango 08:00 - 20:00
+            Entregas sin hora o fuera del rango 10:00 - 17:00
           </div>
 
           <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
@@ -591,7 +726,6 @@ export default function RegistroEntregas() {
 
   const [filters, setFilters] = useState({
     q: "",
-    agencia: "Todos",
     rangoDesde: "",
     rangoHasta: "",
   });
@@ -639,14 +773,8 @@ export default function RegistroEntregas() {
     refreshList();
   }, []);
 
-  const dealers = useMemo(() => {
-    const set = new Set(
-      (entregas || [])
-        .map((item) => normalizeStr(item.agencia))
-        .filter(Boolean)
-    );
-
-    return ["Todos", ...Array.from(set).sort((a, b) => a.localeCompare(b))];
+  const dealerRows = useMemo(() => {
+    return (entregas || []).filter((item) => sameDealer(item.agencia));
   }, [entregas]);
 
   const filtered = useMemo(() => {
@@ -655,7 +783,7 @@ export default function RegistroEntregas() {
     const desdeInt = ymdToInt(filters.rangoDesde);
     const hastaInt = ymdToInt(filters.rangoHasta);
 
-    return (entregas || []).filter((item) => {
+    return dealerRows.filter((item) => {
       const nombreCliente = normalizeStr(item?.cliente?.nombre);
       const telCliente = normalizeStr(item?.cliente?.telefono);
 
@@ -674,10 +802,6 @@ export default function RegistroEntregas() {
         normalizeStr(item.id_cliente_sf_dms).toLowerCase().includes(q) ||
         normalizeStr(item.comentarios).toLowerCase().includes(q);
 
-      const matchAgencia =
-        filters.agencia === "Todos" ||
-        normalizeStr(item.agencia) === normalizeStr(filters.agencia);
-
       let matchRango = true;
 
       if (desdeInt !== null || hastaInt !== null) {
@@ -693,9 +817,9 @@ export default function RegistroEntregas() {
         if (hastaInt !== null && ymdInt > hastaInt) matchRango = false;
       }
 
-      return matchQ && matchAgencia && matchRango;
+      return matchQ && matchRango;
     });
-  }, [entregas, filters]);
+  }, [dealerRows, filters]);
 
   const sorted = useMemo(() => {
     const data = [...filtered];
@@ -768,45 +892,181 @@ export default function RegistroEntregas() {
       });
   }, [filtered, currentWeekDate]);
 
-  const entregadas = sorted.filter((row) =>
-    entregaFisicaActiva(row.entrega_reportada)
-  ).length;
+  const stats = useMemo(() => {
+    const total = sorted.length;
+    const entregadas = sorted.filter((row) =>
+      entregaFisicaActiva(row.entrega_reportada)
+    ).length;
 
-  const noEntregadas = sorted.length - entregadas;
+    const pendientes = total - entregadas;
+    const porcentaje = total ? Math.round((entregadas / total) * 100) : 0;
 
-  const entregasEstado = [
-    { name: "Entregadas", value: entregadas },
-    { name: "No entregadas", value: noEntregadas },
-  ];
+    const hoy = toYMDLocal(new Date());
+    const mesActual = getMonthKey(new Date());
 
-  const entregasPorDealer = Object.values(
-    sorted.reduce((acc, item) => {
-      const dealer = item.agencia || "Sin dealer";
+    const entregasHoy = sorted.filter(
+      (row) => toYMDLocal(row.fecha_hora_entrega) === hoy
+    ).length;
 
-      if (!acc[dealer]) acc[dealer] = { dealer, total: 0 };
+    const entregasMes = sorted.filter(
+      (row) => getMonthKey(row.fecha_hora_entrega) === mesActual
+    ).length;
 
-      acc[dealer].total += 1;
+    const sinFecha = sorted.filter((row) => !row.fecha_hora_entrega).length;
 
-      return acc;
-    }, {})
-  ).sort((a, b) => b.total - a.total);
+    const proximas = sorted.filter((row) => {
+      if (!row.fecha_hora_entrega) return false;
 
-  const entregasPorAsesor = Object.values(
-    sorted.reduce((acc, item) => {
-      const asesor = item.asesor_ventas || "Sin asesor";
+      return (
+        new Date(row.fecha_hora_entrega).getTime() >= Date.now() &&
+        !entregaFisicaActiva(row.entrega_reportada)
+      );
+    }).length;
 
-      if (!acc[asesor]) acc[asesor] = { asesor, total: 0 };
+    const diasConEntrega = new Set(
+      sorted
+        .map((row) => toYMDLocal(row.fecha_hora_entrega))
+        .filter(Boolean)
+    );
 
-      acc[asesor].total += 1;
+    const promedioDiario =
+      diasConEntrega.size > 0 ? (total / diasConEntrega.size).toFixed(1) : "0";
 
-      return acc;
-    }, {})
-  ).sort((a, b) => b.total - a.total);
+    return {
+      total,
+      entregadas,
+      pendientes,
+      porcentaje,
+      entregasHoy,
+      entregasMes,
+      sinFecha,
+      proximas,
+      promedioDiario,
+    };
+  }, [sorted]);
+
+  const chartData = useMemo(() => {
+    const entregasEstado = [
+      { name: "Entregadas", value: stats.entregadas },
+      { name: "Pendientes", value: stats.pendientes },
+    ];
+
+    const porDiaMap = {};
+
+    for (const row of sorted) {
+      const ymd = toYMDLocal(row.fecha_hora_entrega) || "sin-fecha";
+      const label = ymd === "sin-fecha" ? "Sin fecha" : formatShortDate(ymd);
+
+      if (!porDiaMap[ymd]) {
+        porDiaMap[ymd] = {
+          ymd,
+          dia: label,
+          total: 0,
+          entregadas: 0,
+          pendientes: 0,
+        };
+      }
+
+      porDiaMap[ymd].total += 1;
+
+      if (entregaFisicaActiva(row.entrega_reportada)) {
+        porDiaMap[ymd].entregadas += 1;
+      } else {
+        porDiaMap[ymd].pendientes += 1;
+      }
+    }
+
+    const porDia = Object.values(porDiaMap)
+      .sort((a, b) => {
+        if (a.ymd === "sin-fecha") return 1;
+        if (b.ymd === "sin-fecha") return -1;
+
+        return a.ymd.localeCompare(b.ymd);
+      })
+      .slice(-14);
+
+    const porHoraMap = {};
+
+    for (const row of sorted) {
+      const hora = getHourKey(row.fecha_hora_entrega) || "Sin hora";
+
+      if (!porHoraMap[hora]) {
+        porHoraMap[hora] = {
+          hora,
+          total: 0,
+        };
+      }
+
+      porHoraMap[hora].total += 1;
+    }
+
+    const porHora = Object.values(porHoraMap).sort((a, b) =>
+      a.hora.localeCompare(b.hora)
+    );
+
+    const porAsesor = countBy(sorted, (row) => row.asesor_ventas, "asesor").slice(
+      0,
+      10
+    );
+
+    const porModelo = countBy(sorted, (row) => row.modelo_version, "modelo").slice(
+      0,
+      10
+    );
+
+    const porVersion = countBy(sorted, (row) => row.version, "version").slice(
+      0,
+      10
+    );
+
+    const porColor = countBy(sorted, (row) => row.color, "color").slice(0, 10);
+
+    const porDiaSemana = countBy(
+      sorted,
+      (row) => getWeekdayName(row.fecha_hora_entrega),
+      "dia"
+    );
+
+    return {
+      entregasEstado,
+      porDia,
+      porHora,
+      porAsesor,
+      porModelo,
+      porVersion,
+      porColor,
+      porDiaSemana,
+    };
+  }, [sorted, stats]);
+
+  const highlights = useMemo(() => {
+    const topAsesor = chartData.porAsesor[0];
+    const topModelo = chartData.porModelo[0];
+    const topColor = chartData.porColor[0];
+    const horaPico = chartData.porHora[0]
+      ? [...chartData.porHora].sort((a, b) => b.total - a.total)[0]
+      : null;
+
+    const diaPico = chartData.porDia[0]
+      ? [...chartData.porDia].sort((a, b) => b.total - a.total)[0]
+      : null;
+
+    return {
+      topAsesor: topAsesor
+        ? `${topAsesor.asesor} (${topAsesor.total})`
+        : "Sin datos",
+      topModelo: topModelo
+        ? `${topModelo.modelo} (${topModelo.total})`
+        : "Sin datos",
+      topColor: topColor ? `${topColor.color} (${topColor.total})` : "Sin datos",
+      horaPico: horaPico ? `${horaPico.hora} (${horaPico.total})` : "Sin datos",
+      diaPico: diaPico ? `${diaPico.dia} (${diaPico.total})` : "Sin datos",
+    };
+  }, [chartData]);
 
   const resetFilters = () => {
     setFilters({
       q: "",
-      agencia: "Todos",
       rangoDesde: "",
       rangoHasta: "",
     });
@@ -836,587 +1096,657 @@ export default function RegistroEntregas() {
   };
 
   return (
-    <div className="w-full p-20">
-      <div className="mb-4 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="truncate text-lg font-extrabold text-[#131E5C]">
-              Entregas
-            </h2>
+    <div className="min-h-screen w-full bg-slate-100 p-3 sm:p-5 lg:p-7">
+      <div className="mx-auto max-w-[1800px]">
+        <div className="mb-5 overflow-hidden rounded-lg bg-[#131E5C] shadow-xl">
+          <div className="relative p-5 sm:p-7">
 
-            <span className="rounded-full border border-[#131E5C]/20 bg-[#131E5C]/5 px-3 py-1 text-xs font-bold text-[#131E5C]">
-              Vista pública
-            </span>
+            <div className="relative z-10 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div>
+                <h1 className="mt-3 text-2xl font-black tracking-tight text-white sm:text-3xl">
+                  Entregas {DEFAULT_DEALER}
+                </h1>
+              </div>
+
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="inline-flex overflow-hidden rounded-lg border border-white/20 bg-white p-1 shadow-sm">
+                  <ViewButton
+                    active={viewMode === "agenda"}
+                    onClick={() => setViewMode("agenda")}
+                    icon={CalendarDays}
+                    label="Agenda"
+                  />
+
+                  <ViewButton
+                    active={viewMode === "tabla"}
+                    onClick={() => setViewMode("tabla")}
+                    icon={TableProperties}
+                    label="Tabla"
+                  />
+
+                  <ViewButton
+                    active={viewMode === "graficas"}
+                    onClick={() => setViewMode("graficas")}
+                    icon={BarChart3}
+                    label="Gráficas"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={refreshList}
+                  disabled={loadingList}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-white px-4 py-2 text-sm font-black text-[#131E5C] shadow-sm transition hover:bg-slate-100 disabled:opacity-60"
+                >
+                  {loadingList ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RefreshCcw className="h-4 w-4" />
+                  )}
+                  Actualizar
+                </button>
+              </div>
+            </div>
           </div>
-
-          <p className="mt-1 text-xs font-semibold text-slate-500">
-            Consulta de agenda, tabla y gráficas sin iniciar sesión.
-          </p>
         </div>
 
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-          <div className="inline-flex overflow-hidden rounded-lg border border-[#131E5C] bg-white p-1">
-            <button
-              type="button"
-              onClick={() => setViewMode("agenda")}
-              className={[
-                "inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-black transition",
-                viewMode === "agenda"
-                  ? "bg-[#131E5C] text-white"
-                  : "text-[#131E5C] hover:bg-slate-50",
-              ].join(" ")}
-            >
-              <CalendarDays className="h-4 w-4" />
-              Agenda
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setViewMode("tabla")}
-              className={[
-                "inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-black transition",
-                viewMode === "tabla"
-                  ? "bg-[#131E5C] text-white"
-                  : "text-[#131E5C] hover:bg-slate-50",
-              ].join(" ")}
-            >
-              <TableProperties className="h-4 w-4" />
-              Tabla
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setViewMode("graficas")}
-              className={[
-                "inline-flex items-center justify-center gap-2 rounded-md px-3 py-2 text-xs font-black transition",
-                viewMode === "graficas"
-                  ? "bg-[#131E5C] text-white"
-                  : "text-[#131E5C] hover:bg-slate-50",
-              ].join(" ")}
-            >
-              <BarChart3 className="h-4 w-4" />
-              Gráficas
-            </button>
+        {ctxError ? (
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            {ctxError}
           </div>
+        ) : null}
+        <div className="mb-5 rounded-lg border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="grid gap-3 md:grid-cols-12">
+            <div className="md:col-span-6">
+              <FilterBlock label="Búsqueda">
+                <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 transition focus-within:border-[#131E5C] focus-within:bg-white">
+                  <Search className="h-4 w-4 text-[#131E5C]" />
 
-          <button
-            type="button"
-            onClick={refreshList}
-            disabled={loadingList}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#131E5C] px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-[#131E5C]/80 disabled:opacity-60"
-          >
-            {loadingList ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCcw className="h-4 w-4" />
-            )}
-            Actualizar
-          </button>
-        </div>
-      </div>
-
-      {ctxError ? (
-        <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-          {ctxError}
-        </div>
-      ) : null}
-
-      <div className="mb-4 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-        <div className="grid gap-3 md:grid-cols-12">
-          <div className="md:col-span-6">
-            <FilterBlock label="Búsqueda">
-              <div className="flex items-center gap-2 rounded-lg border border-[#131E5C] bg-white px-3 py-2">
-                <Search className="h-4 w-4 text-[#131E5C]" />
-
-                <input
-                  value={filters.q}
-                  onChange={(e) =>
-                    setFilters((prev) => ({
-                      ...prev,
-                      q: e.target.value,
-                    }))
-                  }
-                  placeholder="Buscar por dealer, cliente, teléfono, VIN, modelo, versión, color, asesor…"
-                  className="w-full text-sm text-[#131E5C] outline-none placeholder:text-[#131E5C]/60"
-                />
-
-                {filters.q ? (
-                  <button
-                    type="button"
-                    onClick={() =>
+                  <input
+                    value={filters.q}
+                    onChange={(e) =>
                       setFilters((prev) => ({
                         ...prev,
-                        q: "",
+                        q: e.target.value,
                       }))
                     }
-                    className="rounded-lg bg-white p-1 text-[#131E5C] hover:bg-white/80 hover:text-red-500"
-                    aria-label="Limpiar búsqueda"
+                    placeholder="Buscar por cliente, teléfono, VIN, modelo, versión, color, asesor…"
+                    className="w-full bg-transparent text-sm font-semibold text-[#131E5C] outline-none placeholder:text-slate-400"
+                  />
+
+                  {filters.q ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFilters((prev) => ({
+                          ...prev,
+                          q: "",
+                        }))
+                      }
+                      className="rounded-lg bg-white p-1 text-[#131E5C] hover:text-red-500"
+                      aria-label="Limpiar búsqueda"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  ) : null}
+                </div>
+              </FilterBlock>
+            </div>
+
+            <div className="md:col-span-3">
+              <FilterBlock label="Desde">
+                <input
+                  type="date"
+                  value={filters.rangoDesde}
+                  onChange={(e) =>
+                    onChangeDateFilter("rangoDesde", e.target.value)
+                  }
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-[#131E5C] outline-none focus:border-[#131E5C] focus:bg-white"
+                />
+              </FilterBlock>
+            </div>
+
+            <div className="md:col-span-3">
+              <FilterBlock label="Hasta">
+                <input
+                  type="date"
+                  value={filters.rangoHasta}
+                  onChange={(e) =>
+                    onChangeDateFilter("rangoHasta", e.target.value)
+                  }
+                  className="w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-semibold text-[#131E5C] outline-none focus:border-[#131E5C] focus:bg-white"
+                />
+              </FilterBlock>
+            </div>
+
+            <div className="md:col-span-12">
+              <div className="flex flex-col gap-2 sm:flex-row sm:justify-between">
+                <div className="grid grid-cols-2 gap-2 sm:flex">
+                  <button
+                    type="button"
+                    onClick={setHoy}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-700"
+                  >
+                    <CalendarDays className="h-4 w-4" />
+                    Hoy
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={resetFilters}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#131E5C] bg-white px-4 py-2 text-sm font-bold text-[#131E5C] hover:bg-[#131E5C] hover:text-white"
                   >
                     <X className="h-4 w-4" />
+                    Limpiar filtros
                   </button>
-                ) : null}
+                </div>
               </div>
-            </FilterBlock>
-          </div>
-
-          <div className="md:col-span-3">
-            <FilterBlock label="Dealer">
-              <select
-                value={filters.agencia}
-                onChange={(e) =>
-                  setFilters((prev) => ({
-                    ...prev,
-                    agencia: e.target.value,
-                  }))
-                }
-                className="w-full rounded-lg border border-[#131E5C] bg-white px-3 py-2 text-sm text-[#131E5C] outline-none"
-              >
-                {dealers.map((dealer) => (
-                  <option key={dealer} value={dealer}>
-                    {dealer}
-                  </option>
-                ))}
-              </select>
-            </FilterBlock>
-          </div>
-
-          <div className="md:col-span-3">
-            <FilterBlock label="Acciones">
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={setHoy}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-white/10 bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
-                  title="Mostrar solo registros del día de hoy"
-                >
-                  <CalendarDays className="h-4 w-4" />
-                  Hoy
-                </button>
-
-                <button
-                  type="button"
-                  onClick={resetFilters}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-[#131E5C] bg-white px-3 py-2 text-sm font-semibold text-[#131E5C] hover:bg-[#131E5C] hover:text-white"
-                >
-                  <X className="h-4 w-4" />
-                  Limpiar
-                </button>
-              </div>
-            </FilterBlock>
-          </div>
-
-          <div className="md:col-span-6">
-            <FilterBlock label="Desde">
-              <input
-                type="date"
-                value={filters.rangoDesde}
-                onChange={(e) =>
-                  onChangeDateFilter("rangoDesde", e.target.value)
-                }
-                className="w-full rounded-lg border border-[#131E5C] bg-white px-3 py-2 text-sm text-[#131E5C] outline-none"
-              />
-            </FilterBlock>
-          </div>
-
-          <div className="md:col-span-6">
-            <FilterBlock label="Hasta">
-              <input
-                type="date"
-                value={filters.rangoHasta}
-                onChange={(e) =>
-                  onChangeDateFilter("rangoHasta", e.target.value)
-                }
-                className="w-full rounded-lg border border-[#131E5C] bg-white px-3 py-2 text-sm text-[#131E5C] outline-none"
-              />
-            </FilterBlock>
+            </div>
           </div>
         </div>
-      </div>
 
-      {viewMode === "agenda" ? (
-        <>
-          <AgendaMobileList rows={agendaRows} loading={loadingList} />
+        {viewMode === "agenda" ? (
+          <>
+            <AgendaMobileList rows={agendaRows} loading={loadingList} />
 
-          <AgendaWeekView
-            rows={agendaRows}
-            loading={loadingList}
-            currentWeekDate={currentWeekDate}
-            setCurrentWeekDate={setCurrentWeekDate}
-          />
-        </>
-      ) : null}
+            <AgendaWeekView
+              rows={agendaRows}
+              loading={loadingList}
+              currentWeekDate={currentWeekDate}
+              setCurrentWeekDate={setCurrentWeekDate}
+            />
+          </>
+        ) : null}
 
-      {viewMode === "tabla" ? (
-        <div className="overflow-hidden rounded-lg bg-white shadow-lg">
-          <div className="overflow-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="border border-black bg-[#131E5C] text-xs text-white">
-                <tr>
-                  <th className="px-4 py-3">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort("fecha_hora_entrega")}
-                      className="inline-flex items-center gap-1 text-xs font-bold"
-                    >
-                      Fecha y hora
-                      <span className="opacity-60">
-                        {sort.key === "fecha_hora_entrega" ? (
-                          sort.dir === "asc" ? (
-                            <ChevronUp className="h-4" />
+        {viewMode === "tabla" ? (
+          <div className="overflow-hidden rounded-lg bg-white shadow-lg ring-1 ring-slate-200">
+            <div className="border-b border-slate-200 p-4">
+              <h2 className="text-sm font-black uppercase tracking-wide text-[#131E5C]">
+                Tabla de entregas
+              </h2>
+
+              <p className="mt-1 text-xs font-semibold text-slate-500">
+                Mostrando únicamente registros de {DEFAULT_DEALER}.
+              </p>
+            </div>
+
+            <div className="overflow-auto">
+              <table className="min-w-full text-left text-sm">
+                <thead className="bg-[#131E5C] text-xs text-white">
+                  <tr>
+                    <th className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleSort("fecha_hora_entrega")}
+                        className="inline-flex items-center gap-1 text-xs font-bold"
+                      >
+                        Fecha y hora
+                        <span className="opacity-60">
+                          {sort.key === "fecha_hora_entrega" ? (
+                            sort.dir === "asc" ? (
+                              <ChevronUp className="h-4" />
+                            ) : (
+                              <ChevronDown className="h-4" />
+                            )
                           ) : (
-                            <ChevronDown className="h-4" />
-                          )
-                        ) : (
-                          <ArrowUpDown className="h-4" />
-                        )}
-                      </span>
-                    </button>
-                  </th>
+                            <ArrowUpDown className="h-4" />
+                          )}
+                        </span>
+                      </button>
+                    </th>
 
-                  <th className="px-4 py-3">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort("agencia")}
-                      className="inline-flex items-center gap-1 text-xs font-bold"
-                    >
-                      Dealer
-                      <span className="opacity-60">
-                        {sort.key === "agencia" ? (
-                          sort.dir === "asc" ? (
-                            <ChevronUp className="h-4" />
+                    <th className="px-4 py-3">
+                      <button
+                        type="button"
+                        onClick={() => toggleSort("cliente")}
+                        className="inline-flex items-center gap-1 text-xs font-bold"
+                      >
+                        Cliente
+                        <span className="opacity-60">
+                          {sort.key === "cliente" ? (
+                            sort.dir === "asc" ? (
+                              <ChevronUp className="h-4" />
+                            ) : (
+                              <ChevronDown className="h-4" />
+                            )
                           ) : (
-                            <ChevronDown className="h-4" />
-                          )
-                        ) : (
-                          <ArrowUpDown className="h-4" />
-                        )}
-                      </span>
-                    </button>
-                  </th>
+                            <ArrowUpDown className="h-4" />
+                          )}
+                        </span>
+                      </button>
+                    </th>
 
-                  <th className="px-4 py-3">
-                    <button
-                      type="button"
-                      onClick={() => toggleSort("cliente")}
-                      className="inline-flex items-center gap-1 text-xs font-bold"
-                    >
-                      Cliente
-                      <span className="opacity-60">
-                        {sort.key === "cliente" ? (
-                          sort.dir === "asc" ? (
-                            <ChevronUp className="h-4" />
-                          ) : (
-                            <ChevronDown className="h-4" />
-                          )
-                        ) : (
-                          <ArrowUpDown className="h-4" />
-                        )}
-                      </span>
-                    </button>
-                  </th>
+                    <th className="px-4 py-3">Teléfono</th>
+                    <th className="px-4 py-3">VIN</th>
+                    <th className="px-4 py-3">Modelo</th>
+                    <th className="px-4 py-3">Versión</th>
+                    <th className="px-4 py-3">Color</th>
+                    <th className="px-4 py-3">Asesor ventas</th>
+                    <th className="px-4 py-3">Entrega física</th>
+                    <th className="px-4 py-3">Preparada por</th>
+                    <th className="px-4 py-3">Comentarios</th>
+                  </tr>
+                </thead>
 
-                  <th className="px-4 py-3">Teléfono</th>
-                  <th className="px-4 py-3">VIN</th>
-                  <th className="px-4 py-3">Modelo</th>
-                  <th className="px-4 py-3">Versión</th>
-                  <th className="px-4 py-3">Color</th>
-                  <th className="px-4 py-3">Asesor ventas</th>
-                  <th className="px-4 py-3">Entrega física</th>
-                  <th className="px-4 py-3">Preparada por</th>
-                  <th className="px-4 py-3">ID SF-NADIN</th>
-                  <th className="px-4 py-3">ID SF-DMS</th>
-                  <th className="px-4 py-3">Comentarios</th>
-                </tr>
-              </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {loadingList ? (
+                    <>
+                      {Array.from({ length: 8 }).map((_, index) => (
+                        <SkeletonRow key={index} />
+                      ))}
+                    </>
+                  ) : (
+                    <>
+                      {sorted.map((row) => {
+                        const nombreCliente = row?.cliente?.nombre || "—";
+                        const telefonoCliente = row?.cliente?.telefono || "—";
 
-              <tbody className="divide-y divide-black/10">
-                {loadingList ? (
-                  <>
-                    {Array.from({ length: 8 }).map((_, index) => (
-                      <SkeletonRow key={index} />
-                    ))}
-                  </>
-                ) : (
-                  <>
-                    {sorted.map((row) => {
-                      const nombreCliente = row?.cliente?.nombre || "—";
-                      const telefonoCliente = row?.cliente?.telefono || "—";
+                        return (
+                          <tr key={row.id} className="hover:bg-slate-50">
+                            <td className="whitespace-nowrap px-4 py-3 font-semibold text-[#131E5C]">
+                              {formatDateTime(row.fecha_hora_entrega)}
+                            </td>
 
-                      return (
-                        <tr key={row.id} className="hover:bg-slate-50">
-                          <td className="px-4 py-3 text-[#131E5C]">
-                            {formatDateTime(row.fecha_hora_entrega)}
-                          </td>
+                            <td className="px-4 py-3 font-bold text-[#131E5C]">
+                              {nombreCliente}
+                            </td>
 
-                          <td className="px-4 py-3 font-semibold text-[#131E5C]">
-                            {row.agencia || "—"}
-                          </td>
+                            <td className="px-4 py-3 text-slate-700">
+                              {telefonoCliente}
+                            </td>
 
-                          <td className="px-4 py-3 text-[#131E5C]">
-                            {nombreCliente}
-                          </td>
+                            <td className="px-4 py-3 font-semibold text-slate-700">
+                              {row.vin || "—"}
+                            </td>
 
-                          <td className="px-4 py-3 text-[#131E5C]">
-                            {telefonoCliente}
-                          </td>
+                            <td className="px-4 py-3 text-slate-700">
+                              {row.modelo_version || "—"}
+                            </td>
 
-                          <td className="px-4 py-3 text-[#131E5C]">
-                            {row.vin || "—"}
-                          </td>
+                            <td className="px-4 py-3 text-slate-700">
+                              {row.version || "—"}
+                            </td>
 
-                          <td className="px-4 py-3 text-[#131E5C]">
-                            {row.modelo_version || "—"}
-                          </td>
+                            <td className="px-4 py-3 text-slate-700">
+                              {row.color || "—"}
+                            </td>
 
-                          <td className="px-4 py-3 text-[#131E5C]">
-                            {row.version || "—"}
-                          </td>
+                            <td className="px-4 py-3 text-slate-700">
+                              {row.asesor_ventas || "—"}
+                            </td>
 
-                          <td className="px-4 py-3 text-[#131E5C]">
-                            {row.color || "—"}
-                          </td>
+                            <td className="px-4 py-3">
+                              <StatusBadge row={row} />
+                            </td>
 
-                          <td className="px-4 py-3 text-[#131E5C]">
-                            {row.asesor_ventas || "—"}
-                          </td>
+                            <td className="px-4 py-3 text-slate-700">
+                              {row.preparada_por || "—"}
+                            </td>
 
-                          <td className="px-4 py-3 text-[#131E5C]">
-                            <StatusBadge row={row} />
-                          </td>
+                            <td className="max-w-[260px] px-4 py-3 text-slate-700">
+                              <span className="line-clamp-2">
+                                {row.comentarios || "—"}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
 
-                          <td className="px-4 py-3 text-[#131E5C]">
-                            {row.preparada_por || "—"}
-                          </td>
-
-                          <td className="px-4 py-3 text-[#131E5C]">
-                            {row.id_cliente_sf_nadin || "—"}
-                          </td>
-
-                          <td className="px-4 py-3 text-[#131E5C]">
-                            {row.id_cliente_sf_dms || "—"}
-                          </td>
-
-                          <td className="px-4 py-3 text-[#131E5C]">
-                            <span className="line-clamp-2">
-                              {row.comentarios || "—"}
-                            </span>
+                      {sorted.length === 0 ? (
+                        <tr>
+                          <td
+                            colSpan={11}
+                            className="px-4 py-10 text-center text-[#131E5C]"
+                          >
+                            No hay resultados con esos filtros.
                           </td>
                         </tr>
-                      );
-                    })}
-
-                    {sorted.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={14}
-                          className="px-4 py-10 text-center text-[#131E5C]"
-                        >
-                          No hay resultados con esos filtros.
-                        </td>
-                      </tr>
-                    ) : null}
-                  </>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : null}
-
-      {viewMode === "graficas" ? (
-        <div className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-xl border border-[#131E5C]/15 bg-white p-5 shadow-lg">
-              <p className="text-sm font-bold uppercase tracking-wide text-[#131E5C]/60">
-                Total entregas
-              </p>
-
-              <h2 className="mt-2 text-3xl font-black text-[#131E5C]">
-                {sorted.length}
-              </h2>
-            </div>
-
-            <div className="rounded-xl border border-emerald-500/15 bg-white p-5 shadow-lg">
-              <p className="text-sm font-bold uppercase tracking-wide text-emerald-700/70">
-                Entregadas
-              </p>
-
-              <h2 className="mt-2 text-3xl font-black text-emerald-700">
-                {entregadas}
-              </h2>
-            </div>
-
-            <div className="rounded-xl border border-amber-500/15 bg-white p-5 shadow-lg">
-              <p className="text-sm font-bold uppercase tracking-wide text-amber-700/70">
-                No entregadas
-              </p>
-
-              <h2 className="mt-2 text-3xl font-black text-amber-700">
-                {noEntregadas}
-              </h2>
+                      ) : null}
+                    </>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
+        ) : null}
 
-          <div className="grid gap-6 xl:grid-cols-2">
-            <div className="h-[420px] rounded-2xl border border-[#131E5C]/15 bg-white p-6 shadow-xl">
-              <h2 className="mb-4 border-l-4 border-[#131E5C] pl-3 text-base font-bold tracking-wide text-[#131E5C]">
-                Entregas por dealer
-              </h2>
+        {viewMode === "graficas" ? (
+          <div className="space-y-6">
+            <div className="grid gap-4 xl:grid-cols-5">
+              <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm xl:col-span-2">
+                <div className="flex items-start gap-3">
+                  <div className="rounded-lg bg-[#131E5C]/10 p-3 text-[#131E5C]">
+                    <Trophy className="h-5 w-5" />
+                  </div>
 
-              <ResponsiveContainer width="100%" height="88%">
-                <BarChart
-                  data={entregasPorDealer}
-                  margin={{
-                    top: 20,
-                    right: 20,
-                    left: 0,
-                    bottom: 40,
-                  }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#CBD5E1" />
+                  <div>
+                    <h2 className="text-sm font-black uppercase tracking-wide text-[#131E5C]">
+                      Resumen operativo
+                    </h2>
 
-                  <XAxis
-                    dataKey="dealer"
-                    angle={-10}
-                    textAnchor="end"
-                    interval={0}
-                    tick={{
-                      fill: BRAND_BLUE,
-                      fontSize: 11,
-                      fontWeight: 600,
-                    }}
-                  />
+                    <div className="mt-4 grid gap-3 text-sm">
+                      <div className="flex justify-between gap-3 border-b border-slate-100 pb-2">
+                        <span className="font-semibold text-slate-500">
+                          Asesor con más entregas
+                        </span>
+                        <span className="text-right font-black text-[#131E5C]">
+                          {highlights.topAsesor}
+                        </span>
+                      </div>
 
-                  <YAxis
-                    tick={{
-                      fill: BRAND_BLUE,
-                      fontSize: 11,
-                    }}
-                  />
+                      <div className="flex justify-between gap-3 border-b border-slate-100 pb-2">
+                        <span className="font-semibold text-slate-500">
+                          Modelo más entregado
+                        </span>
+                        <span className="text-right font-black text-[#131E5C]">
+                          {highlights.topModelo}
+                        </span>
+                      </div>
 
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: "12px",
-                      border: "1px solid #CBD5E1",
-                      backgroundColor: "rgba(255,255,255,0.98)",
-                      fontSize: "12px",
-                      color: BRAND_BLUE,
-                      fontWeight: 600,
-                    }}
-                  />
+                      <div className="flex justify-between gap-3 border-b border-slate-100 pb-2">
+                        <span className="font-semibold text-slate-500">
+                          Color más frecuente
+                        </span>
+                        <span className="text-right font-black text-[#131E5C]">
+                          {highlights.topColor}
+                        </span>
+                      </div>
 
-                  <Bar
-                    dataKey="total"
-                    fill={BRAND_BLUE}
-                    radius={[8, 8, 0, 0]}
-                  />
-                </BarChart>
-              </ResponsiveContainer>
+                      <div className="flex justify-between gap-3 border-b border-slate-100 pb-2">
+                        <span className="font-semibold text-slate-500">
+                          Hora pico
+                        </span>
+                        <span className="text-right font-black text-[#131E5C]">
+                          {highlights.horaPico}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between gap-3">
+                        <span className="font-semibold text-slate-500">
+                          Día con más entregas
+                        </span>
+                        <span className="text-right font-black text-[#131E5C]">
+                          {highlights.diaPico}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="h-[310px] rounded-lg border border-slate-200 bg-white p-5 shadow-sm xl:col-span-3">
+                <h2 className="mb-4 border-l-4 border-[#131E5C] pl-3 text-sm font-black uppercase tracking-wide text-[#131E5C]">
+                  Tendencia diaria
+                </h2>
+
+                <ResponsiveContainer width="100%" height="82%">
+                  <LineChart data={chartData.porDia}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#CBD5E1" />
+
+                    <XAxis
+                      dataKey="dia"
+                      tick={{ fill: BRAND_BLUE, fontSize: 11 }}
+                    />
+
+                    <YAxis tick={{ fill: BRAND_BLUE, fontSize: 11 }} />
+
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: "14px",
+                        border: "1px solid #CBD5E1",
+                        backgroundColor: "rgba(255,255,255,0.98)",
+                        fontSize: "12px",
+                        color: BRAND_BLUE,
+                        fontWeight: 600,
+                      }}
+                    />
+
+                    <Legend />
+
+                    <Line
+                      type="monotone"
+                      dataKey="total"
+                      name="Total"
+                      stroke={BRAND_BLUE}
+                      strokeWidth={3}
+                      dot={{ r: 3 }}
+                    />
+
+                    <Line
+                      type="monotone"
+                      dataKey="entregadas"
+                      name="Entregadas"
+                      stroke={EMERALD}
+                      strokeWidth={3}
+                      dot={{ r: 3 }}
+                    />
+
+                    <Line
+                      type="monotone"
+                      dataKey="pendientes"
+                      name="Pendientes"
+                      stroke={AMBER}
+                      strokeWidth={3}
+                      dot={{ r: 3 }}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
-            <div className="h-[420px] rounded-2xl border border-[#131E5C]/15 bg-white p-6 shadow-xl">
-              <h2 className="mb-4 border-l-4 border-[#131E5C] pl-3 text-base font-bold tracking-wide text-[#131E5C]">
-                Entregadas / no entregadas
-              </h2>
+            <div className="grid gap-6 xl:grid-cols-2">
+              <div className="h-[420px] rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="mb-4 border-l-4 border-[#131E5C] pl-3 text-sm font-black uppercase tracking-wide text-[#131E5C]">
+                  Entregadas / pendientes
+                </h2>
 
-              <ResponsiveContainer width="100%" height="88%">
-                <PieChart>
-                  <Pie
-                    data={entregasEstado}
-                    dataKey="value"
-                    nameKey="name"
-                    outerRadius={105}
-                    label
+                <ResponsiveContainer width="100%" height="88%">
+                  <PieChart>
+                    <Pie
+                      data={chartData.entregasEstado}
+                      dataKey="value"
+                      nameKey="name"
+                      outerRadius={105}
+                      label
+                    >
+                      {chartData.entregasEstado.map((entry, index) => (
+                        <Cell
+                          key={entry.name}
+                          fill={PIE_COLORS[index % PIE_COLORS.length]}
+                        />
+                      ))}
+                    </Pie>
+
+                    <Tooltip />
+
+                    <Legend />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="h-[420px] rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="mb-4 border-l-4 border-[#131E5C] pl-3 text-sm font-black uppercase tracking-wide text-[#131E5C]">
+                  Entregas por hora
+                </h2>
+
+                <ResponsiveContainer width="100%" height="88%">
+                  <BarChart data={chartData.porHora}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#CBD5E1" />
+
+                    <XAxis
+                      dataKey="hora"
+                      tick={{ fill: BRAND_BLUE, fontSize: 11 }}
+                    />
+
+                    <YAxis tick={{ fill: BRAND_BLUE, fontSize: 11 }} />
+
+                    <Tooltip />
+
+                    <Bar dataKey="total" fill={SKY} radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="grid gap-6 xl:grid-cols-2">
+              <div className="h-[520px] rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="mb-4 border-l-4 border-[#131E5C] pl-3 text-sm font-black uppercase tracking-wide text-[#131E5C]">
+                  Top asesores
+                </h2>
+
+                <ResponsiveContainer width="100%" height="90%">
+                  <BarChart
+                    layout="vertical"
+                    data={chartData.porAsesor}
+                    margin={{
+                      top: 20,
+                      right: 30,
+                      left: 90,
+                      bottom: 20,
+                    }}
                   >
-                    {entregasEstado.map((entry, index) => (
-                      <Cell
-                        key={entry.name}
-                        fill={CHART_COLORS[index % CHART_COLORS.length]}
-                      />
-                    ))}
-                  </Pie>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#CBD5E1" />
 
-                  <Tooltip
-                    contentStyle={{
-                      borderRadius: "12px",
-                      border: "1px solid #CBD5E1",
-                      backgroundColor: "rgba(255,255,255,0.98)",
-                      fontSize: "12px",
-                      color: BRAND_BLUE,
-                    }}
-                  />
+                    <XAxis
+                      type="number"
+                      tick={{ fill: BRAND_BLUE, fontSize: 11 }}
+                    />
 
-                  <Legend
-                    verticalAlign="bottom"
-                    height={36}
-                    wrapperStyle={{
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      color: BRAND_BLUE,
+                    <YAxis
+                      type="category"
+                      dataKey="asesor"
+                      width={170}
+                      tick={{ fill: BRAND_BLUE, fontSize: 11 }}
+                    />
+
+                    <Tooltip />
+
+                    <Bar
+                      dataKey="total"
+                      fill={BRAND_BLUE}
+                      radius={[0, 8, 8, 0]}
+                    />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="h-[520px] rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="mb-4 border-l-4 border-[#131E5C] pl-3 text-sm font-black uppercase tracking-wide text-[#131E5C]">
+                  Top modelos
+                </h2>
+
+                <ResponsiveContainer width="100%" height="90%">
+                  <BarChart
+                    layout="vertical"
+                    data={chartData.porModelo}
+                    margin={{
+                      top: 20,
+                      right: 30,
+                      left: 70,
+                      bottom: 20,
                     }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
+                  >
+                    <CartesianGrid strokeDasharray="3 3" stroke="#CBD5E1" />
+
+                    <XAxis
+                      type="number"
+                      tick={{ fill: BRAND_BLUE, fontSize: 11 }}
+                    />
+
+                    <YAxis
+                      type="category"
+                      dataKey="modelo"
+                      width={140}
+                      tick={{ fill: BRAND_BLUE, fontSize: 11 }}
+                    />
+
+                    <Tooltip />
+
+                    <Bar dataKey="total" fill={SKY} radius={[0, 8, 8, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            <div className="grid gap-6 xl:grid-cols-3">
+              <div className="h-[420px] rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="mb-4 border-l-4 border-[#131E5C] pl-3 text-sm font-black uppercase tracking-wide text-[#131E5C]">
+                  Versiones
+                </h2>
+
+                <ResponsiveContainer width="100%" height="88%">
+                  <BarChart data={chartData.porVersion}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#CBD5E1" />
+
+                    <XAxis
+                      dataKey="version"
+                      angle={-15}
+                      textAnchor="end"
+                      interval={0}
+                      tick={{ fill: BRAND_BLUE, fontSize: 10 }}
+                    />
+
+                    <YAxis tick={{ fill: BRAND_BLUE, fontSize: 11 }} />
+
+                    <Tooltip />
+
+                    <Bar dataKey="total" fill={BRAND_BLUE} radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="h-[420px] rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="mb-4 border-l-4 border-[#131E5C] pl-3 text-sm font-black uppercase tracking-wide text-[#131E5C]">
+                  Colores
+                </h2>
+
+                <ResponsiveContainer width="100%" height="88%">
+                  <BarChart data={chartData.porColor}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#CBD5E1" />
+
+                    <XAxis
+                      dataKey="color"
+                      angle={-15}
+                      textAnchor="end"
+                      interval={0}
+                      tick={{ fill: BRAND_BLUE, fontSize: 10 }}
+                    />
+
+                    <YAxis tick={{ fill: BRAND_BLUE, fontSize: 11 }} />
+
+                    <Tooltip />
+
+                    <Bar dataKey="total" fill={SLATE} radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+
+              <div className="h-[420px] rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+                <h2 className="mb-4 border-l-4 border-[#131E5C] pl-3 text-sm font-black uppercase tracking-wide text-[#131E5C]">
+                  Días con mayor actividad
+                </h2>
+
+                <ResponsiveContainer width="100%" height="88%">
+                  <BarChart data={chartData.porDiaSemana}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#CBD5E1" />
+
+                    <XAxis
+                      dataKey="dia"
+                      tick={{ fill: BRAND_BLUE, fontSize: 10 }}
+                    />
+
+                    <YAxis tick={{ fill: BRAND_BLUE, fontSize: 11 }} />
+
+                    <Tooltip />
+
+                    <Bar dataKey="total" fill={EMERALD} radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </div>
-
-          <div className="h-[700px] rounded-2xl border border-[#131E5C]/15 bg-white p-6 shadow-xl">
-            <h2 className="mb-4 border-l-4 border-[#131E5C] pl-3 text-base font-bold tracking-wide text-[#131E5C]">
-              Entregas por asesor
-            </h2>
-
-            <ResponsiveContainer width="100%" height="92%">
-              <BarChart
-                layout="vertical"
-                data={entregasPorAsesor.slice(0, 10)}
-                margin={{
-                  top: 20,
-                  right: 30,
-                  left: 80,
-                  bottom: 20,
-                }}
-                barCategoryGap={16}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="#CBD5E1" />
-
-                <XAxis
-                  type="number"
-                  tick={{
-                    fill: BRAND_BLUE,
-                    fontSize: 11,
-                  }}
-                />
-
-                <YAxis
-                  type="category"
-                  dataKey="asesor"
-                  width={160}
-                  tick={{
-                    fill: BRAND_BLUE,
-                    fontSize: 11,
-                  }}
-                />
-
-                <Tooltip
-                  contentStyle={{
-                    borderRadius: "12px",
-                    border: "1px solid #CBD5E1",
-                    backgroundColor: "rgba(255,255,255,0.98)",
-                    fontSize: "12px",
-                    color: BRAND_BLUE,
-                  }}
-                />
-
-                <Bar
-                  dataKey="total"
-                  fill={BRAND_BLUE}
-                  radius={[0, 8, 8, 0]}
-                />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      ) : null}
+        ) : null}
+      </div>
     </div>
   );
 }
