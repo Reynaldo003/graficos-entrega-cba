@@ -1630,10 +1630,6 @@ export default function App() {
               <h1 className="truncate text-2xl font-black text-white sm:text-3xl">
                 Entregas {DEFAULT_DEALER}
               </h1>
-
-              <p className="mt-1 text-xs font-semibold text-white/70">
-                Vista operativa de consulta. No permite modificar registros.
-              </p>
             </div>
 
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
