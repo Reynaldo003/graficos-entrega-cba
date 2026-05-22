@@ -1191,7 +1191,7 @@ function GraficosView({ stats, chartData, highlights }) {
       </div>
       <ReconocimientoGraph chartData={chartData} highlights={highlights} />
 
-      <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-2">
         <EstadoGraph stats={stats} />
 
         <GraphList
