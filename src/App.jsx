@@ -714,17 +714,18 @@ function GraphCard({ title, icon: Icon, children, className = "" }) {
   return (
     <div
       className={[
-        "rounded-xl border border-black/10 bg-white p-4 shadow-sm",
-        "min-h-[230px] transition-all duration-200 hover:-translate-y-[2px] hover:shadow-lg",
+        "min-w-0 overflow-hidden rounded-xl border border-black/10 bg-white p-3 shadow-sm",
+        "transition-all duration-200 hover:-translate-y-[2px] hover:shadow-lg",
+        "sm:p-4",
         className,
       ].join(" ")}
     >
-      <div className="mb-3 flex items-center gap-2 text-sm font-extrabold text-[#131E5C]">
-        {Icon ? <Icon className="h-4 w-4" /> : null}
-        {title}
+      <div className="mb-3 flex min-w-0 items-center gap-2 text-xs font-extrabold text-[#131E5C] sm:text-sm">
+        {Icon ? <Icon className="h-4 w-4 shrink-0" /> : null}
+        <span className="truncate">{title}</span>
       </div>
 
-      {children}
+      <div className="min-w-0">{children}</div>
     </div>
   );
 }
@@ -924,24 +925,25 @@ function GraphList({
   return (
     <GraphCard title={title} icon={Icon}>
       {visibleItems.length ? (
-        <div className="overflow-x-auto overflow-y-hidden pb-2">
+        <div className="w-full max-w-full overflow-x-auto overflow-y-visible overscroll-x-contain pb-2 [scrollbar-width:thin]">
           <div
-            className="flex min-h-[190px] items-end gap-3 pr-2"
+            className="flex min-h-[175px] items-end gap-2 pr-2 sm:min-h-[195px] sm:gap-3"
             style={{
-              minWidth: `${Math.max(visibleItems.length * 72, 280)}px`,
+              minWidth: `max(100%, ${visibleItems.length * 52}px)`,
             }}
           >
             {visibleItems.map((item, index) => {
               const label = item?.[labelKey] || "Sin capturar";
               const value = item.total || 0;
               const pct = max > 0 ? Math.round((value / max) * 100) : 0;
-              const pctTotal = total > 0 ? Math.round((value / total) * 100) : 0;
+              const pctTotal =
+                total > 0 ? Math.round((value / total) * 100) : 0;
               const isHovered = hoveredIndex === index;
 
               return (
                 <div
                   key={`${title}-${label}-${index}`}
-                  className="relative flex w-[60px] shrink-0 cursor-default flex-col items-center gap-2"
+                  className="relative flex w-[42px] shrink-0 cursor-default flex-col items-center gap-2 sm:w-[56px]"
                   onMouseEnter={() => setHoveredIndex(index)}
                   onMouseLeave={() => setHoveredIndex(null)}
                 >
@@ -955,14 +957,14 @@ function GraphList({
 
                   <span
                     className={[
-                      "text-xs font-black transition-colors",
+                      "text-[11px] font-black transition-colors sm:text-xs",
                       isHovered ? "text-[#131E5C]" : "text-slate-500",
                     ].join(" ")}
                   >
                     {value}
                   </span>
 
-                  <div className="flex h-[125px] w-full items-end rounded-t-lg bg-slate-100">
+                  <div className="flex h-[105px] w-full items-end rounded-t-lg bg-slate-100 sm:h-[125px]">
                     <div
                       className={[
                         "w-full rounded-t-lg transition-all duration-500",
@@ -978,7 +980,7 @@ function GraphList({
 
                   <span
                     className={[
-                      "line-clamp-2 min-h-[30px] w-full text-center text-[10px] font-bold leading-tight transition-colors",
+                      "line-clamp-2 min-h-[28px] w-full text-center text-[9px] font-bold leading-tight transition-colors sm:text-[10px]",
                       isHovered ? "text-[#131E5C]" : "text-slate-500",
                     ].join(" ")}
                     title={label}
@@ -1154,7 +1156,7 @@ function GraficosView({ stats, chartData, highlights }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+      <div className="grid min-w-0 grid-cols-2 gap-3 md:grid-cols-4">
         <KpiCard
           label="Total entregas"
           value={stats.total}
@@ -1189,7 +1191,7 @@ function GraficosView({ stats, chartData, highlights }) {
       </div>
       <ReconocimientoGraph chartData={chartData} highlights={highlights} />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-2">
+      <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">
         <EstadoGraph stats={stats} />
 
         <GraphList
@@ -1622,8 +1624,8 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-slate-100 p-3 sm:p-5 lg:p-7">
-      <div className="mx-auto max-w-[1800px]">
+    <div className="min-h-screen w-full overflow-x-hidden bg-slate-100 p-3 sm:p-5 lg:p-7">
+      <div className="mx-auto w-full max-w-[1800px] min-w-0">
         <header className="mb-5 rounded-lg bg-[#131E5C] px-5 py-6 shadow-lg sm:px-7">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="min-w-0">
@@ -1783,8 +1785,7 @@ export default function App() {
               </h2>
 
               <p className="mt-1 text-xs font-semibold text-slate-500">
-                Mostrando únicamente registros de {DEFAULT_DEALER}. Esta vista
-                no permite editar.
+                Mostrando registros de {DEFAULT_DEALER}.
               </p>
             </div>
 
