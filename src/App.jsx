@@ -27,6 +27,16 @@ import {
   CalendarCheck2,
   UserRound,
   ClipboardList,
+  PlusCircle,
+  Building2,
+  Calendar,
+  Car,
+  ClipboardCheck,
+  MessageSquare,
+  RotateCcw,
+  User,
+  UserCheck,
+  Layers3,
 } from "lucide-react";
 
 import {
@@ -46,6 +56,7 @@ import {
 } from "recharts";
 
 import { apiEntregas } from "./lib/apiEntregas";
+import { apiEntrega } from "./lib/apiEntrega";
 
 const DEFAULT_DEALER = "VW Cordoba";
 const BRAND_BLUE = "#131E5C";
@@ -60,6 +71,89 @@ const HOURS = Array.from(
 );
 
 const PIE_COLORS = [EMERALD, AMBER];
+
+const DEALERS = [
+  "VW Cordoba",
+  "VW Orizaba",
+  "VW Poza Rica",
+  "VW Tuxtepec",
+  "VW Tuxpan",
+];
+
+const MODELOS = [
+  "Virtus",
+  "Polo",
+  "Jetta",
+  "Jetta GLI",
+  "Golf GTI",
+  "Taos",
+  "Nivus",
+  "Taigun",
+  "Tiguan",
+  "Teramont",
+  "Crossport",
+  "Saveiro",
+  "Amarok",
+  "Seminuevos",
+  "Tera",
+  "Avaluo",
+  "Transporter",
+  "Caddy",
+  "Crafter",
+];
+
+const VERSIONES = [
+  "Trendline",
+  "Comfortline",
+  "Highline",
+  "Sportline",
+  "GLI",
+  "GTI",
+  "R",
+  "Peak Edition",
+  "Robust",
+  "Extreme",
+];
+
+const COLORES = [
+  "Blanco Candy",
+  "Blanco Puro",
+  "Plata Reflex",
+  "Plata Pirita",
+  "Plata Sirius",
+  "Gris Platino",
+  "Gris Carbon Steel",
+  "Gris Franela",
+  "Negro Ninja",
+  "Negro Profundo",
+  "Azul Rising",
+  "Azul Monterrey",
+  "Rojo Wild Cherry",
+  "Rojo Kings",
+  "Amarillo Kurkuma",
+  "Verde Vibrante",
+];
+
+const ASESORES = [
+  "AURA MARLIZETH FERNANDEZ LOPEZ",
+  "Bianca Isabel Chavez Alarcon",
+  "ERENDIRA SANTOS COYOTZI",
+  "IRENE DEL CARMEN GUIZA LOPEZ",
+  "MARCOS RAUL DIAZ RAMOS",
+  "MARIO ALBERTO LOPEZ RAMOS",
+  "MARISOL LAGUNES GONZALEZ",
+  "NALLELY HERNANDEZ GARCIA",
+  "OCTAVIO BRUNO GONZALEZ",
+  "ROGELIO VAZQUEZ SANCHEZ",
+  "RUBEN ALBERTO TOSQUY ADRIANO",
+  "Saja Azzam Mohammad Jamous",
+  "SANDRA LUZ PRIETO PEREZ",
+  "YAMIL MISAEL RODRIGUEZ AGUILAR",
+  "LUIS ALFONSO CORIA MARROQUIN",
+  "CANDY DENISSE MARQUEZ CORTES",
+  "DELMAR JAVIER ILLESCAS DOMINGUEZ",
+  "EDGAR JESUS GOMEZ PEREZ",
+];
 
 function normalizeStr(value) {
   return String(value ?? "").trim();
@@ -243,6 +337,61 @@ function getWeekdayName(dateLike) {
   });
 }
 
+
+function crearFechaHoraLocal(dayKey, hour) {
+  if (!dayKey || !hour) return "";
+
+  return `${dayKey}T${hour}`;
+}
+
+function crearEstadoInicialEntrega(fechaEntrega = "") {
+  return {
+    dealer: DEFAULT_DEALER,
+    nombre: "",
+    telefono: "",
+    vin: "",
+    modelo: "",
+    version: "",
+    color: "",
+    fechaEntrega,
+    asesorVentas: "",
+    comentarios: "",
+  };
+}
+
+function nombrePdfSeguro(form, id) {
+  const cliente = form?.nombre || "cliente";
+
+  const limpio = cliente
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[\\/:*?"<>|]+/g, "_")
+    .replace(/\s+/g, "_")
+    .toLowerCase();
+
+  return `programacion_entrega_${id}_${limpio}.pdf`;
+}
+
+function crearPayloadEntrega(form) {
+  return {
+    agencia: form.dealer,
+    nombre: form.nombre.trim(),
+    telefono: form.telefono.trim(),
+    correo: "",
+    vin: form.vin.trim().toUpperCase(),
+    modelo_version: form.modelo,
+    version: form.version,
+    color: form.color,
+    fecha_hora_entrega: form.fechaEntrega || null,
+    entrega_reportada: true,
+    asesor_ventas: form.asesorVentas,
+    preparada_por: "",
+    id_cliente_sf_nadin: "",
+    id_cliente_sf_dms: "",
+    comentarios: form.comentarios.trim(),
+  };
+}
+
 function countBy(rows, getKey, labelKey = "name") {
   const map = {};
 
@@ -406,83 +555,13 @@ function EntregaAgendaCard({ row, compact = false }) {
   );
 }
 
-function AgendaMobileList({ rows, loading }) {
-  const grouped = useMemo(() => {
-    const map = new Map();
-
-    for (const row of rows) {
-      const key = row.fecha_hora_entrega
-        ? toYMDLocal(row.fecha_hora_entrega)
-        : "sin-fecha";
-
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(row);
-    }
-
-    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b));
-  }, [rows]);
-
-  if (loading) {
-    return (
-      <div className="grid gap-3 lg:hidden">
-        {Array.from({ length: 6 }).map((_, index) => (
-          <div
-            key={index}
-            className="rounded-lg border border-black/10 bg-white p-4 shadow-sm"
-          >
-            <Skeleton className="h-4 w-40" />
-            <Skeleton className="mt-3 h-4 w-28" />
-            <Skeleton className="mt-3 h-4 w-56" />
-            <Skeleton className="mt-4 h-8 w-24 rounded-full" />
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  if (!rows.length) {
-    return (
-      <div className="rounded-xl border border-slate-200 bg-white px-4 py-10 text-center text-sm font-semibold text-[#131E5C] lg:hidden">
-        No hay entregas en esta semana o con esos filtros.
-      </div>
-    );
-  }
-
-  return (
-    <div className="grid gap-4 lg:hidden">
-      {grouped.map(([key, items]) => {
-        const title =
-          key === "sin-fecha"
-            ? "Sin fecha"
-            : parseYMDLocal(key).toLocaleDateString("es-MX", {
-              weekday: "long",
-              day: "2-digit",
-              month: "long",
-              year: "numeric",
-            });
-
-        return (
-          <section
-            key={key}
-            className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
-          >
-            <h3 className="mb-3 text-xs font-black uppercase tracking-wide text-[#131E5C]">
-              {title}
-            </h3>
-
-            <div className="grid gap-2 sm:grid-cols-2">
-              {items.map((row) => (
-                <EntregaAgendaCard key={row.id} row={row} compact />
-              ))}
-            </div>
-          </section>
-        );
-      })}
-    </div>
-  );
-}
-
-function AgendaWeekView({ rows, loading, currentWeekDate, setCurrentWeekDate }) {
+function AgendaMobileList({
+  rows,
+  availabilityRows = rows,
+  loading,
+  currentWeekDate,
+  onDisponibleClick,
+}) {
   const weekStart = useMemo(
     () => startOfWeekMonday(currentWeekDate),
     [currentWeekDate]
@@ -493,13 +572,12 @@ function AgendaWeekView({ rows, loading, currentWeekDate, setCurrentWeekDate }) 
     [weekStart]
   );
 
-  const weekEnd = weekDays[weekDays.length - 1];
   const todayIso = toYMDLocal(new Date());
 
-  const rowsBySlot = useMemo(() => {
+  const crearMapaPorSlot = (items) => {
     const map = new Map();
 
-    for (const row of rows) {
+    for (const row of items) {
       if (!row.fecha_hora_entrega) continue;
 
       const dayKey = toYMDLocal(row.fecha_hora_entrega);
@@ -519,7 +597,177 @@ function AgendaWeekView({ rows, loading, currentWeekDate, setCurrentWeekDate }) 
     }
 
     return map;
-  }, [rows]);
+  };
+
+  const rowsBySlot = useMemo(() => crearMapaPorSlot(rows), [rows]);
+
+  const availabilityRowsBySlot = useMemo(
+    () => crearMapaPorSlot(availabilityRows),
+    [availabilityRows]
+  );
+
+  if (loading) {
+    return (
+      <div className="grid gap-3 lg:hidden">
+        {Array.from({ length: 6 }).map((_, index) => (
+          <div
+            key={index}
+            className="rounded-lg border border-black/10 bg-white p-4 shadow-sm"
+          >
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="mt-3 h-4 w-28" />
+            <Skeleton className="mt-3 h-4 w-56" />
+            <Skeleton className="mt-4 h-8 w-24 rounded-full" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid gap-4 lg:hidden">
+      {weekDays.map((day) => {
+        const dayKey = toYMDLocal(day);
+        const isToday = dayKey === todayIso;
+
+        return (
+          <section
+            key={dayKey}
+            className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3">
+              <div className="min-w-0">
+                <h3
+                  className={[
+                    "text-xs font-black uppercase tracking-wide",
+                    isToday ? "text-blue-600" : "text-[#131E5C]",
+                  ].join(" ")}
+                >
+                  {day.toLocaleDateString("es-MX", {
+                    weekday: "long",
+                    day: "2-digit",
+                    month: "long",
+                  })}
+                </h3>
+              </div>
+
+              {isToday ? (
+                <span className="rounded-full bg-blue-100 px-2.5 py-1 text-[10px] font-black text-blue-700">
+                  Hoy
+                </span>
+              ) : null}
+            </div>
+
+            <div className="divide-y divide-slate-100">
+              {HOURS.map((hour) => {
+                const slotKey = `${dayKey}|${hour}`;
+                const items = rowsBySlot.get(slotKey) || [];
+                const availabilityItems = availabilityRowsBySlot.get(slotKey) || [];
+                const disponible = availabilityItems.length === 0;
+                const ocupadoOculto = !disponible && items.length === 0;
+
+                return (
+                  <div key={slotKey} className="p-3">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <span className="inline-flex rounded-lg bg-[#131E5C]/10 px-2.5 py-1 text-[11px] font-black text-[#131E5C]">
+                        {hour}
+                      </span>
+
+                      {disponible ? (
+                        <button
+                          type="button"
+                          onClick={() => onDisponibleClick?.({ dayKey, hour })}
+                          className="inline-flex items-center justify-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-[11px] font-black text-emerald-700 transition hover:border-emerald-500 hover:bg-emerald-600 hover:text-white"
+                        >
+                          <PlusCircle className="h-3.5 w-3.5" />
+                          Registrar
+                        </button>
+                      ) : null}
+                    </div>
+
+                    {disponible ? (
+                      <button
+                        type="button"
+                        onClick={() => onDisponibleClick?.({ dayKey, hour })}
+                        className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-emerald-300 bg-emerald-50/70 px-3 py-4 text-xs font-black text-emerald-700 transition hover:border-emerald-500 hover:bg-emerald-600 hover:text-white"
+                      >
+                        <PlusCircle className="h-4 w-4" />
+                        Horario disponible
+                      </button>
+                    ) : ocupadoOculto ? (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-4 text-center text-xs font-black text-amber-700">
+                        Horario ocupado por un registro oculto por filtros
+                      </div>
+                    ) : (
+                      <div className="grid gap-2">
+                        {items.map((row) => (
+                          <EntregaAgendaCard key={row.id} row={row} compact />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        );
+      })}
+    </div>
+  );
+}
+
+function AgendaWeekView({
+  rows,
+  availabilityRows = rows,
+  loading,
+  currentWeekDate,
+  setCurrentWeekDate,
+  onDisponibleClick,
+}) {
+  const weekStart = useMemo(
+    () => startOfWeekMonday(currentWeekDate),
+    [currentWeekDate]
+  );
+
+  const weekDays = useMemo(
+    () => Array.from({ length: 6 }, (_, index) => addDays(weekStart, index)),
+    [weekStart]
+  );
+
+  const weekEnd = weekDays[weekDays.length - 1];
+  const todayIso = toYMDLocal(new Date());
+
+  const crearMapaPorSlot = (items) => {
+    const map = new Map();
+
+    for (const row of items) {
+      if (!row.fecha_hora_entrega) continue;
+
+      const dayKey = toYMDLocal(row.fecha_hora_entrega);
+      const hourKey = getHourKey(row.fecha_hora_entrega);
+      const key = `${dayKey}|${hourKey}`;
+
+      if (!map.has(key)) map.set(key, []);
+      map.get(key).push(row);
+    }
+
+    for (const list of map.values()) {
+      list.sort(
+        (a, b) =>
+          new Date(a.fecha_hora_entrega).getTime() -
+          new Date(b.fecha_hora_entrega).getTime()
+      );
+    }
+
+    return map;
+  };
+
+  const rowsBySlot = useMemo(() => crearMapaPorSlot(rows), [rows]);
+
+  const availabilityRowsBySlot = useMemo(
+    () => crearMapaPorSlot(availabilityRows),
+    [availabilityRows]
+  );
 
   const outOfScheduleRows = useMemo(() => {
     return rows.filter((row) => {
@@ -658,6 +906,9 @@ function AgendaWeekView({ rows, loading, currentWeekDate, setCurrentWeekDate }) 
                   {HOURS.map((hour) => {
                     const slotKey = `${dayKey}|${hour}`;
                     const items = rowsBySlot.get(slotKey) || [];
+                    const availabilityItems = availabilityRowsBySlot.get(slotKey) || [];
+                    const disponible = availabilityItems.length === 0;
+                    const ocupadoOculto = !disponible && items.length === 0;
                     const visibleItems = items.slice(0, 1);
                     const hiddenCount = items.length - visibleItems.length;
 
@@ -666,23 +917,36 @@ function AgendaWeekView({ rows, loading, currentWeekDate, setCurrentWeekDate }) 
                         key={slotKey}
                         className="relative min-h-[130px] border-b border-l border-dashed border-slate-200 bg-white/80 p-1.5 transition hover:bg-slate-50"
                       >
-                        <div className="grid gap-1.5">
-                          {visibleItems.map((row) => (
-                            <EntregaAgendaCard
-                              key={row.id}
-                              row={row}
-                              compact
-                            />
-                          ))}
+                        {disponible ? (
+                          <button
+                            type="button"
+                            onClick={() => onDisponibleClick?.({ dayKey, hour })}
+                            className="flex h-full min-h-[116px] w-full flex-col items-center justify-center gap-2 rounded-lg px-2 text-center text-[11px] font-black text-[#131E5C] transition hover:-translate-y-[2px] hover:shadow-md"
+                          >
+                            <PlusCircle className="h-5 w-5" />
+                          </button>
+                        ) : ocupadoOculto ? (
+                          <div className="flex h-full min-h-[116px] items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-2 text-center text-[10px] font-black leading-tight text-amber-700">
+                            Ocupado por un registro oculto por filtros
+                          </div>
+                        ) : (
+                          <div className="grid gap-1.5">
+                            {visibleItems.map((row) => (
+                              <EntregaAgendaCard
+                                key={row.id}
+                                row={row}
+                                compact
+                              />
+                            ))}
 
-                          {hiddenCount > 0 ? (
-                            <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-center text-[10px] font-black text-[#131E5C]">
-                              +{hiddenCount} entrega
-                              {hiddenCount === 1 ? "" : "s"}
-                            </div>
-                          ) : null}
-                        </div>
-
+                            {hiddenCount > 0 ? (
+                              <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-1.5 text-center text-[10px] font-black text-[#131E5C]">
+                                +{hiddenCount} entrega
+                                {hiddenCount === 1 ? "" : "s"}
+                              </div>
+                            ) : null}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -706,6 +970,357 @@ function AgendaWeekView({ rows, loading, currentWeekDate, setCurrentWeekDate }) 
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+
+const inputModalBase =
+  "w-full min-h-[42px] rounded-xl border bg-white px-3 py-2 text-sm font-semibold text-[#131E5C] outline-none transition placeholder:text-slate-400 focus:border-[#131E5C] focus:ring-2 focus:ring-[#131E5C]/15 disabled:opacity-60";
+
+function CampoModal({ error, children }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      {children}
+      {error ? (
+        <span className="text-[11px] font-bold text-red-600">⚠ {error}</span>
+      ) : null}
+    </div>
+  );
+}
+
+function LabelModal({ icon, text, required = false }) {
+  return (
+    <label className="flex items-center gap-1.5 text-[11px] font-black uppercase tracking-wide text-[#131E5C]">
+      <span className="flex items-center text-[#131E5C]">{icon}</span>
+      {text}
+      {required ? <span className="text-red-500">*</span> : null}
+    </label>
+  );
+}
+
+function ModalRegistroEntrega({ abierto, fechaEntregaInicial, onClose, onGuardado }) {
+  const [form, setForm] = useState(() =>
+    crearEstadoInicialEntrega(fechaEntregaInicial)
+  );
+  const [errores, setErrores] = useState({});
+  const [guardando, setGuardando] = useState(false);
+  const [errorGeneral, setErrorGeneral] = useState("");
+
+  useEffect(() => {
+    if (!abierto) return;
+
+    setForm(crearEstadoInicialEntrega(fechaEntregaInicial));
+    setErrores({});
+    setErrorGeneral("");
+  }, [abierto, fechaEntregaInicial]);
+
+  if (!abierto) return null;
+
+  const deshabilitado = guardando;
+
+  const setCampo = (campo, valor) => {
+    setForm((prev) => ({ ...prev, [campo]: valor }));
+    setErrores((prev) => ({ ...prev, [campo]: "" }));
+    setErrorGeneral("");
+  };
+
+  const limpiarFormulario = () => {
+    setForm(crearEstadoInicialEntrega(fechaEntregaInicial));
+    setErrores({});
+    setErrorGeneral("");
+  };
+
+  const validar = () => {
+    const nuevosErrores = {};
+
+    if (!form.dealer) nuevosErrores.dealer = "Selecciona el dealer.";
+    if (!form.nombre.trim()) nuevosErrores.nombre = "Ingresa el nombre del cliente.";
+    if (!form.telefono || form.telefono.length < 10) {
+      nuevosErrores.telefono = "Ingresa un teléfono válido.";
+    }
+    if (!form.vin.trim()) nuevosErrores.vin = "Ingresa el VIN / Chasis.";
+    if (!form.modelo) nuevosErrores.modelo = "Selecciona un modelo.";
+    if (!form.version) nuevosErrores.version = "Selecciona una versión.";
+    if (!form.color) nuevosErrores.color = "Selecciona un color.";
+    if (!form.fechaEntrega) {
+      nuevosErrores.fechaEntrega = "Selecciona fecha y hora de entrega.";
+    }
+    if (!form.asesorVentas.trim()) {
+      nuevosErrores.asesorVentas = "Selecciona el asesor de ventas.";
+    }
+
+    setErrores(nuevosErrores);
+    return Object.keys(nuevosErrores).length === 0;
+  };
+
+  const handleRegistrarYGenerarPdf = async () => {
+    if (!validar()) return;
+
+    const formAntesDeLimpiar = { ...form };
+
+    try {
+      setGuardando(true);
+      setErrorGeneral("");
+
+      const payload = crearPayloadEntrega(form);
+      const guardado = await apiEntrega.create(payload);
+
+      if (!guardado?.id) {
+        throw new Error("La entrega fue registrada, pero el backend no regresó el ID.");
+      }
+
+      if (typeof onGuardado === "function") {
+        await onGuardado(guardado);
+      }
+
+      try {
+        await apiEntrega.downloadPdf(
+          guardado.id,
+          nombrePdfSeguro(formAntesDeLimpiar, guardado.id)
+        );
+      } catch (pdfError) {
+        setErrorGeneral(
+          `La entrega se registró, pero no se pudo generar el PDF: ${pdfError?.message || "error desconocido"
+          }`
+        );
+        return;
+      }
+
+      limpiarFormulario();
+      onClose?.();
+    } catch (error) {
+      setErrorGeneral(
+        error?.message || "No se pudo registrar la entrega. Revisa el backend."
+      );
+    } finally {
+      setGuardando(false);
+    }
+  };
+
+  const primerError =
+    errores.dealer ||
+    errores.nombre ||
+    errores.telefono ||
+    errores.vin ||
+    errores.modelo ||
+    errores.version ||
+    errores.color ||
+    errores.fechaEntrega ||
+    errores.asesorVentas;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-sm">
+      <div className="max-h-[92vh] w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 bg-[#131E5C] px-5 py-4 text-white">
+          <div className="min-w-0">
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-white/70">
+              Nuevo registro
+            </div>
+            <h2 className="mt-1 text-xl font-black sm:text-2xl">
+              Programar entrega
+            </h2>
+            <p className="mt-1 text-xs font-semibold text-white/75">
+              Horario seleccionado: {formatDateTime(form.fechaEntrega)}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={deshabilitado}
+            className="rounded-xl bg-white/10 p-2 text-white transition hover:bg-white/20 disabled:opacity-60"
+            aria-label="Cerrar modal"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="max-h-[calc(92vh-145px)] overflow-y-auto p-4 sm:p-5">
+          {(primerError || errorGeneral) ? (
+            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
+              ⚠ {errorGeneral || primerError}
+            </div>
+          ) : null}
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <CampoModal error={errores.dealer}>
+              <LabelModal icon={<Building2 size={14} />} text="Dealer" required />
+              <select
+                value={form.dealer}
+                disabled={deshabilitado}
+                onChange={(e) => setCampo("dealer", e.target.value)}
+                className={`${inputModalBase} ${errores.dealer ? "border-red-500" : "border-slate-300"}`}
+              >
+                <option value="">Seleccionar...</option>
+                {DEALERS.map((dealer) => (
+                  <option key={dealer} value={dealer}>
+                    {dealer}
+                  </option>
+                ))}
+              </select>
+            </CampoModal>
+
+            <CampoModal error={errores.nombre}>
+              <LabelModal icon={<User size={14} />} text="Nombre del cliente" required />
+              <input
+                type="text"
+                placeholder="NOMBRE COMPLETO"
+                value={form.nombre}
+                disabled={deshabilitado}
+                onChange={(e) => setCampo("nombre", e.target.value)}
+                className={`${inputModalBase} ${errores.nombre ? "border-red-500" : "border-slate-300"}`}
+              />
+            </CampoModal>
+
+            <CampoModal error={errores.telefono}>
+              <LabelModal icon={<Phone size={14} />} text="Teléfono" required />
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="2711234567"
+                maxLength={12}
+                value={form.telefono}
+                disabled={deshabilitado}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "").slice(0, 12);
+                  setCampo("telefono", val);
+                }}
+                className={`${inputModalBase} ${errores.telefono ? "border-red-500" : "border-slate-300"}`}
+              />
+            </CampoModal>
+
+            <CampoModal error={errores.vin}>
+              <LabelModal icon={<Hash size={14} />} text="VIN / Chasis" required />
+              <input
+                type="text"
+                placeholder="WVW3N4D24ST050404"
+                value={form.vin}
+                disabled={deshabilitado}
+                onChange={(e) => setCampo("vin", e.target.value.toUpperCase())}
+                className={`${inputModalBase} ${errores.vin ? "border-red-500" : "border-slate-300"}`}
+              />
+            </CampoModal>
+
+            <CampoModal error={errores.modelo}>
+              <LabelModal icon={<Car size={14} />} text="Modelo" required />
+              <select
+                value={form.modelo}
+                disabled={deshabilitado}
+                onChange={(e) => setCampo("modelo", e.target.value)}
+                className={`${inputModalBase} ${errores.modelo ? "border-red-500" : "border-slate-300"}`}
+              >
+                <option value="">Seleccionar...</option>
+                {MODELOS.map((modelo) => (
+                  <option key={modelo} value={modelo}>
+                    {modelo}
+                  </option>
+                ))}
+              </select>
+            </CampoModal>
+
+            <CampoModal error={errores.version}>
+              <LabelModal icon={<Layers3 size={14} />} text="Versión" required />
+              <select
+                value={form.version}
+                disabled={deshabilitado}
+                onChange={(e) => setCampo("version", e.target.value)}
+                className={`${inputModalBase} ${errores.version ? "border-red-500" : "border-slate-300"}`}
+              >
+                <option value="">Seleccionar...</option>
+                {VERSIONES.map((version) => (
+                  <option key={version} value={version}>
+                    {version}
+                  </option>
+                ))}
+              </select>
+            </CampoModal>
+
+            <CampoModal error={errores.color}>
+              <LabelModal icon={<Palette size={14} />} text="Color" required />
+              <select
+                value={form.color}
+                disabled={deshabilitado}
+                onChange={(e) => setCampo("color", e.target.value)}
+                className={`${inputModalBase} ${errores.color ? "border-red-500" : "border-slate-300"}`}
+              >
+                <option value="">Seleccionar...</option>
+                {COLORES.map((color) => (
+                  <option key={color} value={color}>
+                    {color}
+                  </option>
+                ))}
+              </select>
+            </CampoModal>
+
+            <CampoModal error={errores.fechaEntrega}>
+              <LabelModal icon={<Calendar size={14} />} text="Fecha y hora" required />
+              <input
+                type="datetime-local"
+                value={form.fechaEntrega}
+                disabled={deshabilitado}
+                onChange={(e) => setCampo("fechaEntrega", e.target.value)}
+                className={`${inputModalBase} ${errores.fechaEntrega ? "border-red-500" : "border-slate-300"}`}
+              />
+            </CampoModal>
+
+            <CampoModal error={errores.asesorVentas}>
+              <LabelModal icon={<UserCheck size={14} />} text="Asesor ventas" required />
+              <select
+                value={form.asesorVentas}
+                disabled={deshabilitado}
+                onChange={(e) => setCampo("asesorVentas", e.target.value)}
+                className={`${inputModalBase} ${errores.asesorVentas ? "border-red-500" : "border-slate-300"}`}
+              >
+                <option value="">Seleccionar...</option>
+                {ASESORES.map((asesor) => (
+                  <option key={asesor} value={asesor}>
+                    {asesor}
+                  </option>
+                ))}
+              </select>
+            </CampoModal>
+
+            <div className="md:col-span-2 xl:col-span-3">
+              <LabelModal icon={<MessageSquare size={14} />} text="Comentarios" />
+              <textarea
+                placeholder="Notas internas..."
+                rows={4}
+                value={form.comentarios}
+                disabled={deshabilitado}
+                onChange={(e) => setCampo("comentarios", e.target.value)}
+                className="mt-1.5 w-full resize-none rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-[#131E5C] outline-none transition placeholder:text-slate-400 focus:border-[#131E5C] focus:ring-2 focus:ring-[#131E5C]/15 disabled:opacity-60"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-2 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:justify-end">
+          <button
+            type="button"
+            onClick={limpiarFormulario}
+            disabled={deshabilitado}
+            className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-black text-red-600 transition hover:bg-red-600 hover:text-white disabled:opacity-60"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Limpiar
+          </button>
+
+          <button
+            type="button"
+            onClick={handleRegistrarYGenerarPdf}
+            disabled={deshabilitado}
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#131E5C] px-4 py-2.5 text-sm font-black text-white transition hover:bg-[#0f1746] disabled:opacity-60"
+          >
+            {guardando ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <ClipboardCheck className="h-4 w-4" />
+            )}
+            Registrar y generar PDF
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1276,6 +1891,10 @@ export default function App() {
   });
 
   const [loadingList, setLoadingList] = useState(false);
+  const [modalRegistro, setModalRegistro] = useState({
+    abierto: false,
+    fechaEntrega: "",
+  });
 
   function toggleSort(key) {
     setSort((prev) => {
@@ -1317,6 +1936,29 @@ export default function App() {
   useEffect(() => {
     refreshList();
   }, []);
+
+
+  const abrirModalRegistro = ({ dayKey, hour }) => {
+    setModalRegistro({
+      abierto: true,
+      fechaEntrega: crearFechaHoraLocal(dayKey, hour),
+    });
+  };
+
+  const cerrarModalRegistro = () => {
+    setModalRegistro({
+      abierto: false,
+      fechaEntrega: "",
+    });
+  };
+
+  const handleEntregaGuardada = async (guardado) => {
+    if (guardado?.fecha_hora_entrega) {
+      setCurrentWeekDate(new Date(guardado.fecha_hora_entrega));
+    }
+
+    await refreshList();
+  };
 
   const dealerRows = useMemo(() => {
     return (entregas || []).filter((item) => sameDealer(item.agencia));
@@ -1432,6 +2074,35 @@ export default function App() {
         return ta - tb;
       });
   }, [filtered, currentWeekDate]);
+
+  const agendaAvailabilityRows = useMemo(() => {
+    const weekStart = startOfWeekMonday(currentWeekDate);
+    const weekEnd = addDays(weekStart, 5);
+    const minInt = ymdToInt(toYMDLocal(weekStart));
+    const maxInt = ymdToInt(toYMDLocal(weekEnd));
+
+    return [...dealerRows]
+      .filter((row) => {
+        if (!row.fecha_hora_entrega) return false;
+
+        const ymd = toYMDLocal(row.fecha_hora_entrega);
+        const ymdInt = ymdToInt(ymd);
+
+        if (!ymdInt) return false;
+
+        return ymdInt >= minInt && ymdInt <= maxInt;
+      })
+      .sort((a, b) => {
+        const ta = a.fecha_hora_entrega
+          ? new Date(a.fecha_hora_entrega).getTime()
+          : 0;
+        const tb = b.fecha_hora_entrega
+          ? new Date(b.fecha_hora_entrega).getTime()
+          : 0;
+
+        return ta - tb;
+      });
+  }, [dealerRows, currentWeekDate]);
 
   const stats = useMemo(() => {
     const total = sorted.length;
@@ -1766,13 +2437,21 @@ export default function App() {
 
         {viewMode === "agenda" ? (
           <>
-            <AgendaMobileList rows={agendaRows} loading={loadingList} />
+            <AgendaMobileList
+              rows={agendaRows}
+              availabilityRows={agendaAvailabilityRows}
+              loading={loadingList}
+              currentWeekDate={currentWeekDate}
+              onDisponibleClick={abrirModalRegistro}
+            />
 
             <AgendaWeekView
               rows={agendaRows}
+              availabilityRows={agendaAvailabilityRows}
               loading={loadingList}
               currentWeekDate={currentWeekDate}
               setCurrentWeekDate={setCurrentWeekDate}
+              onDisponibleClick={abrirModalRegistro}
             />
           </>
         ) : null}
@@ -1936,6 +2615,13 @@ export default function App() {
             highlights={highlights}
           />
         ) : null}
+
+        <ModalRegistroEntrega
+          abierto={modalRegistro.abierto}
+          fechaEntregaInicial={modalRegistro.fechaEntrega}
+          onClose={cerrarModalRegistro}
+          onGuardado={handleEntregaGuardada}
+        />
       </div>
     </div>
   );
