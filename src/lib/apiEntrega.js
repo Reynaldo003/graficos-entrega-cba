@@ -40,10 +40,10 @@ async function leerError(res) {
 
 async function http(
   path,
-  { method = "GET", body, headers, responseType } = {},
+  { method = "GET", body, headers, responseType, auth = false } = {},
 ) {
   const finalHeaders = {
-    ...getAuthHeader(),
+    ...(auth ? getAuthHeader() : {}),
     ...(headers || {}),
   };
 
@@ -96,6 +96,7 @@ function descargarBlob(blob, nombreArchivo) {
 async function crearEntrega(payload) {
   return await http("/citas/api/entregas/", {
     method: "POST",
+    auth: false,
     headers: {
       "Content-Type": "application/json",
     },
@@ -110,6 +111,7 @@ async function descargarPdfEntrega(id, nombreArchivo) {
 
   const blob = await http(`/citas/api/entregas/${id}/pdf/`, {
     method: "GET",
+    auth: false,
     responseType: "blob",
   });
 

@@ -82,7 +82,7 @@ export const apiEntregas = {
   create: (payload) =>
     http("/citas/api/entregas/", {
       method: "POST",
-      auth: true,
+      auth: false,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     }),
