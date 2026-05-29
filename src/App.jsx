@@ -150,6 +150,7 @@ const ASESORES = [
   "DELMAR JAVIER ILLESCAS DOMINGUEZ",
   "EDGAR JESUS GOMEZ PEREZ",
   "VALERIA ZILLI DURANTE",
+  "Idalmy Jiménez",
 ];
 
 function normalizeStr(value) {
